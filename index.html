@@ -898,7 +898,9 @@ function updateDrop(dt) {
       d.lastBeat++;
       FX.kick = 1; FX.beat = 1;
       var k = Math.ceil((d.budget - d.fired) / Math.max(1, Math.round(nb * (d.mega ? 0.75 : 1)) - d.lastBeat)), cols = [];
-      for (var c = 0; c < GC; c++) { var f = frontier(c); if (f) cols.push([c, f]); }
+      // long camera songs: only notes inside the visible window, so beams stay on screen and the drop doesn't finish the whole song
+      var c0 = CAMON ? Math.max(0, Math.floor(CAM)) : 0, c1 = CAMON ? Math.min(GC, Math.ceil(CAM + VC)) : GC;
+      for (var c = c0; c < c1; c++) { var f = frontier(c); if (f) cols.push([c, f]); }
       cols.sort(function () { return Math.random() - 0.5; });
       var srcs = G.walkers.filter(function (w) { return w.state === 'road' || w.state === 'stage'; });
       for (var j = 0; j < k && j < cols.length; j++) {
