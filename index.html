@@ -631,6 +631,8 @@ function updateAudGain() {
 }
 // build lasts about one beat (~0.6 s); the hit may land every 2 beats (~1.25 s), whatever the grid resolution of the song
 function BUILD_COLS() { return Math.max(1, Math.round(0.62 / SONG.sd)); }
+// a drop lasts 2 bars (mega: 4), not one whole grid loop: a whole-song grid (mixi) would hold the cats for over a minute
+function DROP_COLS() { return Math.min(GC, SONG.cols === 16 ? 16 : 32); }
 function LAND_COLS() { var n = Math.max(2, Math.round(1.25 / SONG.sd)); while (GC % n) n--; return n; }
 function sched() {
   if (!ac || !started || !G) return;
@@ -640,7 +642,7 @@ function sched() {
     if (col === 0) { AUD.loopT = nextT; if (audioOn()) playAudSeg(nextT); }
     // the drop lands on the next strong beat (every 2 beats), after a short build
     if (D && D.phase === 'wait' && D.audio && col % LAND_COLS() === (LAND_COLS() - BUILD_COLS() % LAND_COLS()) % LAND_COLS()) {
-      D.buildAt = nextT; D.dropAt = nextT + BUILD_COLS() * SONG.sd; D.endAt = D.dropAt + (D.mega ? 2 : 1) * GC * SONG.sd; D.phase = 'sched';
+      D.buildAt = nextT; D.dropAt = nextT + BUILD_COLS() * SONG.sd; D.endAt = D.dropAt + (D.mega ? 2 : 1) * DROP_COLS() * SONG.sd; D.phase = 'sched';
       buildUp(D.buildAt, D.dropAt, D.mega); dropHit(D.dropAt, D.mega);
     }
     var inDrop = D && D.phase === 'sched' && nextT >= D.dropAt - 1e-4 && nextT < D.endAt - 1e-4;
@@ -875,7 +877,7 @@ function updateDrop(dt) {
     var mega = G.dropN >= 1;
     FX.fullT = time;
     G.drop = { phase: 'wait', audio: audio, mega: mega, lastBeat: -1, budget: mega ? 9999 : Math.min(left, Math.max(4, Math.round(G.total * 0.18))), fired: 0, boomed: false };
-    if (!audio) { G.drop.buildAt = time + 0.3; G.drop.dropAt = G.drop.buildAt + BUILD_COLS() * SONG.sd; G.drop.endAt = G.drop.dropAt + (mega ? 2 : 1) * GC * SONG.sd; G.drop.phase = 'sched'; }
+    if (!audio) { G.drop.buildAt = time + 0.3; G.drop.dropAt = G.drop.buildAt + BUILD_COLS() * SONG.sd; G.drop.endAt = G.drop.dropAt + (mega ? 2 : 1) * DROP_COLS() * SONG.sd; G.drop.phase = 'sched'; }
   }
   var ph = dropPhase(), d = G.drop;
   FX.dropOn += ((ph === 'drop' ? 1 : 0) - FX.dropOn) * Math.min(1, dt * (ph === 'drop' ? 12 : 3));
