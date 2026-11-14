@@ -465,6 +465,8 @@ function initAudio() {
   noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
   var nd = noiseBuf.getChannelData(0); for (var j = 0; j < nd.length; j++) nd[j] = Math.random() * 2 - 1;
   nextT = ac.currentTime + 0.15; step = 0;
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  ['pointerdown', 'touchend', 'keydown', 'click'].forEach(function (ev) { document.addEventListener(ev, function () { if (ac.state !== 'running') ac.resume(); }, true); });
   setInterval(sched, 25);
   document.addEventListener('visibilitychange', function () { if (document.hidden) ac.suspend(); else { ac.resume(); nextT = ac.currentTime + 0.1; } });
 }
@@ -552,9 +554,10 @@ function audStatus() {
   if (!PLAY.audio) return 'Đang chơi bài mặc định, giọng không phát. Chọn file MIDI của bạn rồi bấm "Dùng bài này".';
   return 'Giọng đang bật cho bài ' + PLAY.name + '.';
 }
-function playAudSeg(t) {
+function playAudSeg(t, skip) {
   if (!AUD.bus) { AUD.bus = ac.createGain(); AUD.bus.gain.value = audTarget(); AUD.bus.connect(master); }
   var from = AUD.offset + SONG.t0, dur = SONG.cols * SONG.sd, when = t;
+  if (skip > 0) { from += skip; dur -= skip; when = t + skip; }
   if (from < 0) { when = t - from; dur += from; from = 0; }
   if (dur <= 0.03 || from >= AUD.buf.duration) return;
   var src = ac.createBufferSource(), g = ac.createGain();
@@ -564,6 +567,12 @@ function playAudSeg(t) {
   src.start(when, from, dur);
   AUD.srcs.push(src);
   src.onended = function () { var k = AUD.srcs.indexOf(src); if (k >= 0) AUD.srcs.splice(k, 1); };
+}
+// voice ready mid-loop (slow decode, or tapped Start early): join in at the current spot instead of waiting a whole loop
+function audCatchUp() {
+  if (!ac || !started || !audioOn() || AUD.srcs.length || AUD.loopT === undefined) return;
+  var skip = ac.currentTime + 0.05 - AUD.loopT;
+  if (skip >= 0 && skip < SONG.cols * SONG.sd - 0.1) playAudSeg(AUD.loopT, skip);
 }
 function stopAud() { AUD.srcs.forEach(function (s) { try { s.stop(); } catch (e) {} }); AUD.srcs = []; }
 function updateAudGain() {
@@ -576,7 +585,7 @@ function sched() {
   var vol = G.state === 'win' ? 1.15 : 1;
   while (nextT < ac.currentTime + 0.12) {
     var col = step % GC;
-    if (col === 0 && audioOn()) playAudSeg(nextT);
+    if (col === 0) { AUD.loopT = nextT; if (audioOn()) playAudSeg(nextT); }
     SONG.bg(step, nextT);          // background layer, always on
     if (col % (SONG.beatCols || 4) === 0) hits.push({ t: nextT, beat: true, loop: col === 0 });
     for (var r = 0; r < GR; r++) {
@@ -590,7 +599,7 @@ function sched() {
     nextT += SONG.sd; step++;
   }
 }
-function restartClock() { step = 0; events = []; hits = []; stopAud(); if (ac) nextT = ac.currentTime + 0.12; }
+function restartClock() { step = 0; events = []; hits = []; stopAud(); AUD.loopT = undefined; if (ac) nextT = ac.currentTime + 0.12; }
 function playhead() {
   if (!ac || !events.length) return null;
   var now = ac.currentTime, e = null;
@@ -1838,6 +1847,7 @@ function loadMixiAudio(done) {
   ac.decodeAudioData(b64buf(MIXI_AUDIO), function (buf) {
     MIXI_BUF = buf; AUD.buf = buf; ainfo.className = 'note'; ainfo.textContent = 'Giọng bài mixi đã nạp sẵn (' + Math.round(buf.duration) + ' giây).';
     if (done) done();
+    audCatchUp();
   }, function () { ainfo.className = 'note err'; ainfo.textContent = 'Không nạp được giọng bài mixi.'; });
 }
 function useMixi(len) {
@@ -1938,7 +1948,7 @@ function loop(ts) {
 // test hooks
 window.__game = { get G() { return G; }, step: update, draw: draw, start: function () { initAudio(); started = true; restartClock(); }, get FX() { return FX; }, get time() { return time; }, loadLevel: loadLevel, build: build, LEVEL: LEVEL,
   parseMidi: parseMidi, summarize: summarize, autoAssign: autoAssign, windows: windows, midiSong: midiSong, setSong: setSong, get SONG() { return SONG; },
-  get PLAY() { return PLAY; }, get AUD() { return AUD; }, goNext: goNext, audioOn: audioOn, get ac() { return ac; },
+  get PLAY() { return PLAY; }, get AUD() { return AUD; }, goNext: goNext, audioOn: audioOn, audCatchUp: audCatchUp, get ac() { return ac; },
   release: function (cat) { var g = G.gates.find(function (x) { return x.color === cat.color; }); G.cats.splice(G.cats.indexOf(cat), 1); spawnWalker(cat, gatePos(g), g); } };
 requestAnimationFrame(loop);
 })();
