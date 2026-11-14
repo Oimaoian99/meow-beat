@@ -1836,7 +1836,9 @@ bApply.addEventListener('click', function () {
   catch (e) { pcount.className = 'note err'; pcount.textContent = e.message; }
 });
 function defaultBuffer() { var bin = atob(DEFAULT_MIDI), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
-function useDefault() { loadMidiBuffer(defaultBuffer(), 'Shape Of You.mid', true); startPlay(MID.M, readAssign(), +selBar.value, MID.name, 2, false, false); }
+function useDefault() {   // always 2 bars, busiest section; Độ dài stays as the player set it for the mixi song
+  var keepLen = selLen.value; selLen.value = '2'; loadMidiBuffer(defaultBuffer(), 'Shape Of You.mid', true); selLen.value = keepLen;
+  startPlay(MID.M, readAssign(), +selBar.value, MID.name, 2, false, false); }
 document.getElementById('b-default').addEventListener('click', function () { try { useDefault(); fileIn.value = ''; loadLevel(); restartClock(); closePanel(); } catch (e) { pcount.className = 'note err'; pcount.textContent = e.message; } });
 function b64buf(s) { var bin = atob(s), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
 var MIXI_BUF = null;
